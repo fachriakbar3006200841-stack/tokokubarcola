@@ -1,0 +1,58 @@
+/* Tema kuning-oranye FACHRI AKBAR 13 */
+:root{--ink:#292524;--muted:#78716c;--line:#fed7aa;--blue:#f59e0b;--blue-dark:#c2410c;--bg:#fffaf0;--green:#15803d;--red:#dc2626;--orange:#ea580c;--shadow:0 10px 28px rgba(154,82,12,.09)}
+body{background:var(--bg);color:var(--ink)}
+.sidebar{background:#fff;border-color:#ffedd5;box-shadow:5px 0 24px rgba(124,45,18,.05)}
+.brand-mark{background:linear-gradient(135deg,#fbbf24,#ea580c);color:#fff}
+.avatar{background:#fef3c7;color:#b45309}
+.nav-link{color:#78716c}.nav-link:hover,.nav-link.active{background:#fff3d6;color:#c2410c}
+.topbar{border-color:#fed7aa}.eyebrow{color:#b45309}
+.role-pill{background:#fef3c7;color:#92400e}.role-pill.admin{background:#ffedd5;color:#c2410c}.role-pill.kasir{background:#fef3c7;color:#92400e}
+.card,.auth-card,.product-card,.cart-popover{background:#fff;border-color:#ffedd5}
+.btn-primary{background:linear-gradient(135deg,#f59e0b,#ea580c);color:#fff}.btn-primary:hover{background:#c2410c}
+.btn-light{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}.btn-light:hover{background:#ffedd5;color:#9a3412}
+.input:focus,.select:focus{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.16)}
+.stat-card .stat-icon{background:#fef3c7;color:#b45309}.stat-card.green .stat-icon{background:#dcfce7;color:#15803d}.stat-card.orange .stat-icon{background:#ffedd5;color:#ea580c}.stat-card.red .stat-icon{background:#fee2e2;color:#dc2626}
+.badge.admin,.badge.unpaid{background:#fef3c7;color:#92400e}.badge.kasir{background:#ffedd5;color:#c2410c}
+.product-card:hover{border-color:#f59e0b;box-shadow:0 8px 22px rgba(234,88,12,.12)}.product-card .price{color:#c2410c}
+.bar i{background:linear-gradient(90deg,#fbbf24,#ea580c)}
+.category-tab:hover,.category-tab.active{border-color:#ea580c;background:#ea580c;color:#fff}
+.cart-trigger{color:#c2410c}.cart-trigger:hover,.cart-menu[open] .cart-trigger{background:#fff3d6;border-color:#fbbf24}
+.cart-count{background:#ea580c}.cart-open-btn{background:#ea580c;color:#fff}
+.logout-link{background:#ea580c;color:#fff}.logout-link:hover{background:#c2410c;color:#fff}
+.product-card-image,.product-thumb{background:#fff7ed;color:#c2410c}
+.center-page{background:linear-gradient(135deg,#fef3c7,#fff7ed)}
+.barcode-panel{padding:16px;margin:0 0 18px;border:1px solid #fed7aa;border-radius:12px;background:linear-gradient(120deg,#fffbeb,#fff7ed)}
+.barcode-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.barcode-heading strong{font-size:14px;color:#9a3412}.barcode-heading p{margin:4px 0 0}
+.barcode-symbol{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:#ffedd5;color:#c2410c;font-size:25px}
+.barcode-form{display:grid;grid-template-columns:minmax(160px,1fr) auto auto;gap:8px}
+.scanner-camera-wrap{margin-top:12px;padding:10px;background:#292524;border-radius:10px}.scanner-camera-wrap video{display:block;width:100%;max-height:280px;object-fit:cover;border-radius:7px;background:#111}
+.scanner-camera-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:9px}.scanner-camera-actions .muted{color:#fff7ed}
+/* Kartu produk lebih ringkas agar placeholder tidak memenuhi layar. */
+.product-card-image{height:auto;aspect-ratio:16/9;object-fit:contain;object-position:center;padding:0;margin-bottom:10px}
+.product-card-image.placeholder{display:grid;place-items:center;font-size:34px;border-radius:8px}
+.barcode-code{display:inline-block;margin-top:5px;padding:3px 7px;border-radius:5px;background:#fff7ed;color:#9a3412;font:11px/1.3 Consolas,monospace;letter-spacing:.4px}
+@media(max-width:650px){.barcode-form{grid-template-columns:1fr 1fr}.barcode-form .input{grid-column:1/-1}.barcode-form button{width:100%}}
+
+/* Form barcode otomatis pada halaman tambah barang */
+.barcode-field{min-width:0}
+.barcode-field>small{display:block;margin-top:6px;line-height:1.5}
+.barcode-tools{margin-top:8px;flex-wrap:wrap}
+.barcode-preview{margin-top:10px;padding:10px;border:1px dashed #f59e0b;border-radius:10px;background:#fffbeb;text-align:center;max-width:320px}
+.barcode-preview[hidden]{display:none}
+.barcode-preview svg{display:block;max-width:100%;height:auto;margin:0 auto 5px}
+.scan-result{margin-top:10px;padding:10px 12px;border:1px solid #fed7aa;border-radius:8px;background:#fff;color:#292524;overflow-wrap:anywhere}
+.scan-result.success{border-color:#86c99d;background:#f0fff4}
+.scan-result.error{border-color:#e8a1a1;background:#fff2f2}
+.scan-result[hidden]{display:none}
+.barcode-label-area{margin-top:18px}
+.barcode-label{width:min(360px,100%);margin:0 auto;padding:18px;border:1px solid #dedede;text-align:center;display:grid;justify-items:center;gap:6px}
+.barcode-label svg{width:100%;height:auto}
+.barcode-label span{font-family:Consolas,monospace;letter-spacing:.5px}
+[hidden]{display:none!important}
+@media print{
+    body.print-barcode *{visibility:hidden}
+    .barcode-label-area,.barcode-label-area *{visibility:visible}
+    .barcode-label-area{position:absolute;left:0;top:0;width:100%;margin:0;border:0;box-shadow:none}
+    .barcode-label-area .section-head{display:none}
+}
+.role-pill.user{background:#e0f2fe;color:#075985}.badge.user{background:#e0f2fe;color:#075985}

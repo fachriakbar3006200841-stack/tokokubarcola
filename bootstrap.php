@@ -1,0 +1,347 @@
+<?php
+declare(strict_types=1);
+
+define('APP_ROOT', __DIR__);
+require_once APP_ROOT . '/config.php';
+
+if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    session_name('AURELUXSESS');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    ]);
+    session_start();
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: same-origin');
+}
+
+// ---------- Helper umum ----------
+function e(mixed $v): string
+{
+    return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+}
+
+function base_path(): string
+{
+    static $base = null;
+    if ($base === null) {
+        $doc = str_replace('\\', '/', (string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
+        $root = str_replace('\\', '/', APP_ROOT);
+        $base = ($doc !== '' && str_starts_with($root, $doc)) ? substr($root, strlen($doc)) : '';
+        $base = rtrim($base, '/');
+    }
+    return $base;
+}
+
+function url(string $path = ''): string
+{
+    return base_path() . '/' . ltrim($path, '/');
+}
+
+function redirect(string $path): never
+{
+    header('Location: ' . url($path));
+    exit;
+}
+
+function money(mixed $v): string
+{
+    return 'Rp ' . number_format((float) $v, 0, ',', '.');
+}
+
+function num(mixed $v): string
+{
+    return number_format((float) $v, 0, ',', '.');
+}
+
+function fmt_dt(?string $v, string $f = 'd/m/Y H:i'): string
+{
+    return $v ? date($f, strtotime($v)) : '-';
+}
+
+/** Parse angka format Indonesia/Inggris menjadi float. Melempar exception bila tidak valid. */
+function parse_money(mixed $value): float
+{
+    $raw = preg_replace('/[^0-9,.\-]/', '', trim((string) $value)) ?? '';
+    if ($raw === '' || !preg_match('/^-?\d[\d,.]*$/', $raw)) {
+        throw new InvalidArgumentException('Nominal harus berupa angka yang valid.');
+    }
+    if (str_contains($raw, ',')) {
+        $raw = str_replace(',', '.', str_replace('.', '', $raw));
+    } elseif (substr_count($raw, '.') > 1 || preg_match('/\.\d{3}$/', $raw)) {
+        $raw = str_replace('.', '', $raw);
+    }
+    if (!is_numeric($raw)) {
+        throw new InvalidArgumentException('Nominal harus berupa angka yang valid.');
+    }
+    return round((float) $raw, 2);
+}
+
+function int_in(mixed $v, int $min = 0, ?int $max = null, string $label = 'Jumlah'): int
+{
+    $s = trim((string) $v);
+    if (!preg_match('/^-?\d+$/', $s)) {
+        throw new InvalidArgumentException($label . ' harus berupa bilangan bulat.');
+    }
+    $n = (int) $s;
+    if ($n < $min || ($max !== null && $n > $max)) {
+        throw new InvalidArgumentException($label . ' di luar batas yang diizinkan.');
+    }
+    return $n;
+}
+
+function str_in(mixed $v, int $maxLen, bool $required = true, string $label = 'Kolom'): string
+{
+    $s = trim((string) $v);
+    if ($required && $s === '') {
+        throw new InvalidArgumentException($label . ' wajib diisi.');
+    }
+    if (mb_strlen($s) > $maxLen) {
+        throw new InvalidArgumentException($label . ' maksimal ' . $maxLen . ' karakter.');
+    }
+    return $s;
+}
+
+function date_in(mixed $v, string $label = 'Tanggal'): string
+{
+    $s = trim((string) $v);
+    $d = DateTime::createFromFormat('Y-m-d', $s);
+    if (!$d || $d->format('Y-m-d') !== $s) {
+        throw new InvalidArgumentException($label . ' tidak valid.');
+    }
+    return $s;
+}
+
+// ---------- Flash & CSRF ----------
+function flash(string $type, string $msg): void
+{
+    $_SESSION['_flash'][] = ['type' => $type, 'msg' => $msg];
+}
+
+function take_flash(): array
+{
+    $f = $_SESSION['_flash'] ?? [];
+    unset($_SESSION['_flash']);
+    return $f;
+}
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['_csrf'])) {
+        $_SESSION['_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['_csrf'];
+}
+
+function csrf_field(): string
+{
+    return '<input type="hidden" name="_csrf" value="' . e(csrf_token()) . '">';
+}
+
+function verify_csrf(): void
+{
+    $t = (string) ($_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (!hash_equals($_SESSION['_csrf'] ?? '', $t)) {
+        http_response_code(419);
+        if (is_json_request()) {
+            json_out(['ok' => false, 'error' => 'Token keamanan tidak valid. Muat ulang halaman.'], 419);
+        }
+        exit('Token keamanan tidak valid. Kembali dan muat ulang halaman.');
+    }
+}
+
+function is_post(): bool
+{
+    return ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+}
+
+function is_json_request(): bool
+{
+    return str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')
+        || strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+}
+
+function json_out(array $data, int $status = 200): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+function client_ip(): string
+{
+    return substr((string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'), 0, 45);
+}
+
+// ---------- Database ----------
+function db(): PDO
+{
+    static $pdo = null;
+    if ($pdo instanceof PDO) {
+        return $pdo;
+    }
+    try {
+        $pdo = new PDO(
+            'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
+            DB_USER,
+            DB_PASS,
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]
+        );
+    } catch (PDOException $ex) {
+        http_response_code(500);
+        error_log('AURELUX DB connect: ' . $ex->getMessage());
+        exit('<h3>Database tidak dapat dihubungi.</h3><p>Pastikan MySQL aktif, database <b>' . e(DB_NAME)
+            . '</b> sudah diimpor dari <code>database/aurelux_pos.sql</code>, dan kredensial di '
+            . '<code>config/config.local.php</code> benar.</p>');
+    }
+    return $pdo;
+}
+
+function q(string $sql, array $params = []): PDOStatement
+{
+    $st = db()->prepare($sql);
+    $st->execute($params);
+    return $st;
+}
+
+function setting(string $key, string $default = ''): string
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            foreach (db()->query('SELECT setting_key, setting_value FROM settings') as $r) {
+                $cache[$r['setting_key']] = (string) $r['setting_value'];
+            }
+        } catch (Throwable) {
+        }
+    }
+    return $cache[$key] ?? $default;
+}
+
+function save_setting(string $key, string $value): void
+{
+    q('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [$key, $value]);
+}
+
+function store_info(): array
+{
+    static $s = null;
+    if ($s === null) {
+        $s = q('SELECT * FROM stores ORDER BY id LIMIT 1')->fetch() ?: [
+            'name' => 'AURELUX POS', 'tagline' => '', 'address' => '', 'phone' => '', 'receipt_footer' => '', 'qris_image' => null, 'bank_info' => null,
+        ];
+    }
+    return $s;
+}
+
+// ---------- Audit ----------
+function audit(string $action, ?string $entity = null, int|string|null $entityId = null, string $desc = '', mixed $old = null, mixed $new = null): void
+{
+    try {
+        $uid = $_SESSION['uid'] ?? null;
+        q(
+            'INSERT INTO audit_logs (user_id, action, entity, entity_id, description, old_values, new_values, ip) VALUES (?,?,?,?,?,?,?,?)',
+            [
+                $uid, $action, $entity, $entityId !== null ? (string) $entityId : null, mb_substr($desc, 0, 255),
+                $old === null ? null : json_encode($old, JSON_UNESCAPED_UNICODE),
+                $new === null ? null : json_encode($new, JSON_UNESCAPED_UNICODE),
+                client_ip(),
+            ]
+        );
+    } catch (Throwable $ex) {
+        error_log('AURELUX audit gagal: ' . $ex->getMessage());
+    }
+}
+
+// ---------- Nomor dokumen ----------
+/** Nomor invoice harian atomik (harus dipanggil di dalam transaksi DB). */
+function next_invoice_no(string $prefix = 'INV'): string
+{
+    $pdo = db();
+    $d = date('Y-m-d');
+    $pdo->prepare('INSERT IGNORE INTO invoice_counters (counter_date, last_no) VALUES (?, 0)')->execute([$d]);
+    $st = $pdo->prepare('SELECT last_no FROM invoice_counters WHERE counter_date = ? FOR UPDATE');
+    $st->execute([$d]);
+    $n = (int) $st->fetchColumn() + 1;
+    $pdo->prepare('UPDATE invoice_counters SET last_no = ? WHERE counter_date = ?')->execute([$n, $d]);
+    return $prefix . '-' . date('Ymd') . '-' . str_pad((string) $n, 4, '0', STR_PAD_LEFT);
+}
+
+function doc_code(string $prefix, string $table, string $column): string
+{
+    for ($i = 0; $i < 10; $i++) {
+        $c = $prefix . '-' . date('ymd') . '-' . strtoupper(bin2hex(random_bytes(2)));
+        $st = db()->prepare("SELECT COUNT(*) FROM `$table` WHERE `$column` = ?");
+        $st->execute([$c]);
+        if ((int) $st->fetchColumn() === 0) {
+            return $c;
+        }
+    }
+    throw new RuntimeException('Gagal membuat nomor dokumen unik.');
+}
+
+// ---------- Stok ----------
+/** Ubah stok + catat movement. Wajib dalam transaksi DB. Produk non-stok diabaikan. */
+function stock_move(int $productId, string $type, int $change, ?string $refType = null, ?int $refId = null, string $note = ''): void
+{
+    $st = db()->prepare('SELECT stock_qty, track_stock, name FROM products WHERE id = ? FOR UPDATE');
+    $st->execute([$productId]);
+    $p = $st->fetch();
+    if (!$p) {
+        throw new RuntimeException('Produk tidak ditemukan.');
+    }
+    if (!(int) $p['track_stock']) {
+        return;
+    }
+    $before = (int) $p['stock_qty'];
+    $after = $before + $change;
+    if ($after < 0) {
+        throw new RuntimeException('Stok "' . $p['name'] . '" tidak mencukupi (tersisa ' . $before . ').');
+    }
+    q('UPDATE products SET stock_qty = ? WHERE id = ?', [$after, $productId]);
+    q(
+        'INSERT INTO stock_movements (product_id, type, qty_change, qty_before, qty_after, ref_type, ref_id, note, user_id) VALUES (?,?,?,?,?,?,?,?,?)',
+        [$productId, $type, $change, $before, $after, $refType, $refId, mb_substr($note, 0, 255), $_SESSION['uid'] ?? null]
+    );
+}
+
+/** Jalankan callback dalam transaksi; rollback otomatis bila gagal. */
+function in_tx(callable $fn): mixed
+{
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $r = $fn();
+        $pdo->commit();
+        return $r;
+    } catch (Throwable $ex) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $ex;
+    }
+}
+
+function user_error_message(Throwable $ex): string
+{
+    if ($ex instanceof InvalidArgumentException || $ex instanceof RuntimeException) {
+        return $ex->getMessage();
+    }
+    error_log('AURELUX error: ' . $ex->getMessage() . ' @ ' . $ex->getFile() . ':' . $ex->getLine());
+    if ($ex instanceof PDOException && ($ex->errorInfo[1] ?? 0) === 1062) {
+        return 'Data duplikat: nilai unik (kode/barcode/username) sudah dipakai.';
+    }
+    return APP_DEBUG ? $ex->getMessage() : 'Terjadi kesalahan sistem. Perubahan dibatalkan; hubungi administrator.';
+}
